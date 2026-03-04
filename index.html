@@ -1351,7 +1351,7 @@
                 const messages = [
                     { 
                         role: 'system', 
-                        content: 'You are Helvorn, a helpful and knowledgeable AI assistant. You remember previous conversations and provide personalized, accurate responses. Be friendly, concise, and engaging.' 
+                        content: 'You are Helvorn, a helpful and knowledgeable AI assistant. You remember previous conversations and provide personalized, accurate responses. Be friendly, concise, and engaging.\n\nIMPORTANT: When providing code, always wrap it in markdown code blocks using triple backticks (```). Specify the language after the opening backticks. For example:\n```python\ncode here\n```\nor\n```javascript\ncode here\n```\n\nFor inline code, use single backticks like `this`.' 
                     },
                     ...chatManager.conversationMemory
                 ];
@@ -1545,32 +1545,146 @@
         }
 
         function parseCodeBlocks(text) {
-            // Replace code blocks with syntax highlighting
             let html = text;
             
-            // Match code blocks: ```language\ncode\n```
-            const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+            // First, handle proper markdown code blocks: ```language\ncode\n```
+            const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
             html = html.replace(codeBlockRegex, (match, language, code) => {
                 const lang = language || 'code';
-                const escapedCode = escapeHtml(code.trim());
-                return `
-                    <div class="code-block">
-                        <div class="code-header">
-                            <span class="code-language">${lang}</span>
-                            <button class="copy-code-btn" data-code="${escapeHtml(code.trim())}">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                </svg>
-                                Copy
-                            </button>
-                        </div>
-                        <div class="code-content">
-                            <pre><code>${escapedCode}</code></pre>
-                        </div>
+                const trimmedCode = code.trim();
+                const escapedCode = escapeHtml(trimmedCode);
+                return `<div class="code-block">
+                    <div class="code-header">
+                        <span class="code-language">${lang}</span>
+                        <button class="copy-code-btn" data-code="${escapeHtml(trimmedCode)}">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                        </button>
                     </div>
-                `;
+                    <div class="code-content">
+                        <pre><code>${escapedCode}</code></pre>
+                    </div>
+                </div>`;
             });
+            
+            // Auto-detect code-like content (HTML, common programming patterns)
+            // Look for blocks that start with < or contain function/class keywords
+            const lines = html.split('\n');
+            let inCodeBlock = false;
+            let codeLines = [];
+            let detectedLang = 'code';
+            let result = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Detect start of code (HTML tags, DOCTYPE, or common code patterns)
+                const isCodeLine = 
+                    line.startsWith('<!DOCTYPE') ||
+                    line.startsWith('<html') ||
+                    line.startsWith('<head') ||
+                    line.startsWith('<body') ||
+                    line.startsWith('<div') ||
+                    line.startsWith('<span') ||
+                    line.startsWith('<p>') ||
+                    line.startsWith('<meta') ||
+                    line.match(/^(function|class|const|let|var|def|import|export|public|private)\s/) ||
+                    line.match(/^<\w+.*>/) ||
+                    (line.includes('</') && line.includes('>'));
+                
+                if (isCodeLine && !inCodeBlock && !line.includes('class="code-block"')) {
+                    inCodeBlock = true;
+                    codeLines = [lines[i]];
+                    
+                    // Detect language
+                    if (line.includes('DOCTYPE') || line.includes('<html')) {
+                        detectedLang = 'html';
+                    } else if (line.match(/^(function|const|let|var|export|import)/)) {
+                        detectedLang = 'javascript';
+                    } else if (line.match(/^(def|class|import|from)/)) {
+                        detectedLang = 'python';
+                    }
+                } else if (inCodeBlock) {
+                    // Check if code block ends (empty line or non-code line after 2+ code lines)
+                    if (line === '' && codeLines.length > 2) {
+                        // End code block
+                        const codeText = codeLines.join('\n');
+                        const escapedCode = escapeHtml(codeText);
+                        result.push(`<div class="code-block">
+                            <div class="code-header">
+                                <span class="code-language">${detectedLang}</span>
+                                <button class="copy-code-btn" data-code="${escapeHtml(codeText)}">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code>${escapedCode}</code></pre>
+                            </div>
+                        </div>`);
+                        inCodeBlock = false;
+                        codeLines = [];
+                        detectedLang = 'code';
+                        result.push(lines[i]);
+                    } else if (!isCodeLine && line !== '' && codeLines.length > 2) {
+                        // Non-code line encountered, end block
+                        const codeText = codeLines.join('\n');
+                        const escapedCode = escapeHtml(codeText);
+                        result.push(`<div class="code-block">
+                            <div class="code-header">
+                                <span class="code-language">${detectedLang}</span>
+                                <button class="copy-code-btn" data-code="${escapeHtml(codeText)}">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code>${escapedCode}</code></pre>
+                            </div>
+                        </div>`);
+                        inCodeBlock = false;
+                        codeLines = [];
+                        detectedLang = 'code';
+                        result.push(lines[i]);
+                    } else {
+                        codeLines.push(lines[i]);
+                    }
+                } else {
+                    result.push(lines[i]);
+                }
+            }
+            
+            // Handle remaining code block at end
+            if (inCodeBlock && codeLines.length > 0) {
+                const codeText = codeLines.join('\n');
+                const escapedCode = escapeHtml(codeText);
+                result.push(`<div class="code-block">
+                    <div class="code-header">
+                        <span class="code-language">${detectedLang}</span>
+                        <button class="copy-code-btn" data-code="${escapeHtml(codeText)}">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                    <div class="code-content">
+                        <pre><code>${escapedCode}</code></pre>
+                    </div>
+                </div>`);
+            }
+            
+            html = result.join('\n');
             
             // Replace inline code: `code`
             const inlineCodeRegex = /`([^`]+)`/g;
