@@ -450,7 +450,7 @@
         // ============================================
         // CONFIGURATION - ADD YOUR GROQ API KEY HERE
         // ============================================
-        const GROQ_API_KEY = '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'; // Replace with your actual key
+        const GROQ_API_KEY = 'YOUR_GROQ_API_KEY_HERE'; // Replace with your actual key
         
         // ============================================
         // CHAT FUNCTIONALITY
@@ -507,7 +507,7 @@
                         'Authorization': `Bearer ${GROQ_API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'llama-3.1-70b-versatile',
+                        model: 'llama-3.3-70b-versatile',
                         messages: [
                             { 
                                 role: 'system', 
@@ -536,7 +536,7 @@
                 console.error('Error:', error);
                 removeTypingIndicator(typingId);
                 
-                if (GROQ_API_KEY === 'YOUR_GROQ_API_KEY_HERE') {
+                if (GROQ_API_KEY === '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') {
                     addMessage('⚠️ Please add your Groq API key in the script section at the top of this HTML file. Replace "YOUR_GROQ_API_KEY_HERE" with your actual API key.', 'bot');
                 } else {
                     addMessage('Connection error. Please check your API key and try again. Error: ' + error.message, 'bot');
