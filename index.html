@@ -399,8 +399,15 @@
             line-height: 1.6;
             font-size: 15px;
             font-weight: 400;
-            white-space: pre-wrap;
             word-wrap: break-word;
+        }
+
+        .message-text p {
+            margin: 0 0 12px 0;
+        }
+
+        .message-text p:last-child {
+            margin-bottom: 0;
         }
 
         .message-actions {
@@ -442,22 +449,9 @@
             color: var(--success);
         }
 
-        .message-wrapper.user .copy-message-btn {
-            background: rgba(0, 0, 0, 0.2);
-            border-color: rgba(0, 0, 0, 0.3);
-            color: rgba(0, 0, 0, 0.7);
-        }
-
-        .message-wrapper.user .copy-message-btn:hover {
-            background: rgba(0, 0, 0, 0.3);
-            border-color: rgba(0, 0, 0, 0.5);
-            color: #000;
-        }
-
         .code-block {
-            position: relative;
             margin: 12px 0;
-            background: #1a1a1a;
+            background: #000;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             overflow: hidden;
@@ -475,7 +469,7 @@
         .code-language {
             font-size: 11px;
             font-weight: 600;
-            color: var(--text-secondary);
+            color: var(--gold);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -514,14 +508,14 @@
 
         .code-content pre {
             margin: 0;
-            font-family: 'Courier New', monospace;
+            font-family: 'Courier New', Consolas, Monaco, monospace;
             font-size: 13px;
             line-height: 1.6;
             color: #e0e0e0;
         }
 
         .code-content code {
-            font-family: 'Courier New', monospace;
+            font-family: 'Courier New', Consolas, Monaco, monospace;
         }
 
         .code-content::-webkit-scrollbar {
@@ -539,18 +533,12 @@
 
         .inline-code {
             padding: 2px 6px;
-            background: var(--dark-elevated);
+            background: var(--dark-bg);
             border: 1px solid var(--border-color);
             border-radius: 4px;
-            font-family: 'Courier New', monospace;
+            font-family: 'Courier New', Consolas, Monaco, monospace;
             font-size: 13px;
             color: var(--gold);
-        }
-
-        .message-wrapper.user .inline-code {
-            background: rgba(0, 0, 0, 0.2);
-            border-color: rgba(0, 0, 0, 0.3);
-            color: rgba(0, 0, 0, 0.8);
         }
 
         .typing-indicator {
@@ -1041,14 +1029,8 @@
     </div>
     
     <script>
-        // ============================================
-        // CONFIGURATION - ADD YOUR GROQ API KEY HERE
-        // ============================================
         const GROQ_API_KEY = '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';
         
-        // ============================================
-        // STORAGE & STATE MANAGEMENT
-        // ============================================
         class ChatManager {
             constructor() {
                 this.chats = this.loadChats();
@@ -1237,9 +1219,6 @@
             }
         }
 
-        // ============================================
-        // UI MANAGEMENT
-        // ============================================
         const chatManager = new ChatManager();
         const chatMessages = document.getElementById('chatMessages');
         const chatForm = document.getElementById('chatForm');
@@ -1257,12 +1236,10 @@
         const importModal = document.getElementById('importModal');
         const chatFileInput = document.getElementById('chatFileInput');
 
-        // Initialize UI
         modelSelector.value = chatManager.currentModel;
         renderChatList();
         loadCurrentChat();
 
-        // Event Listeners
         newChatBtn.addEventListener('click', () => {
             chatManager.createNewChat();
             renderChatList();
@@ -1351,7 +1328,18 @@
                 const messages = [
                     { 
                         role: 'system', 
-                        content: 'You are Helvorn, a helpful and knowledgeable AI assistant. You remember previous conversations and provide personalized, accurate responses. Be friendly, concise, and engaging.\n\nIMPORTANT: When providing code, always wrap it in markdown code blocks using triple backticks (```). Specify the language after the opening backticks. For example:\n```python\ncode here\n```\nor\n```javascript\ncode here\n```\n\nFor inline code, use single backticks like `this`.' 
+                        content: `You are Helvorn, a helpful AI assistant. When sharing code, ALWAYS wrap it in markdown code blocks using triple backticks with the language specified.
+
+Example:
+\`\`\`javascript
+function example() {
+    console.log("Hello!");
+}
+\`\`\`
+
+For inline code, use single backticks: \`code here\`
+
+Be friendly, concise, and helpful. Remember previous conversations.` 
                     },
                     ...chatManager.conversationMemory
                 ];
@@ -1366,31 +1354,47 @@
                         model: chatManager.currentModel,
                         messages: messages,
                         max_tokens: 2000,
-                        temperature: 0.7
+                        temperature: 0.7,
+                        stream: true
                     })
                 });
 
-                const data = await response.json();
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
                 
-                if (!response.ok) {
-                    throw new Error(data.error?.message || 'API error');
+                removeTypingIndicator(typingId);
+                const messageId = createStreamingMessage();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                const content = data.choices[0]?.delta?.content;
+                                if (content) {
+                                    fullText += content;
+                                    updateStreamingMessage(messageId, fullText);
+                                }
+                            } catch (e) {}
+                        }
+                    }
                 }
 
-                removeTypingIndicator(typingId);
-                const aiResponse = data.choices[0].message.content;
-                addMessage(aiResponse, 'bot');
-                chatManager.addMessage(chatManager.currentChatId, 'bot', aiResponse);
+                finalizeStreamingMessage(messageId, fullText);
+                chatManager.addMessage(chatManager.currentChatId, 'bot', fullText);
                 renderChatList();
                 
             } catch (error) {
                 console.error('Error:', error);
                 removeTypingIndicator(typingId);
-                
-                if (GROQ_API_KEY === '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') {
-                    addMessage('⚠️ API key not configured. Please add your Groq API key in the script section.', 'bot');
-                } else {
-                    addMessage('Connection error: ' + error.message, 'bot');
-                }
+                addMessage('Connection error: ' + error.message, 'bot');
             } finally {
                 sendButton.disabled = false;
                 userInput.disabled = false;
@@ -1421,7 +1425,7 @@
                 chatItem.className = 'chat-item' + (chat.id === chatManager.currentChatId ? ' active' : '');
                 
                 const lastMessage = chat.messages.length > 0 
-                    ? chat.messages[chat.messages.length - 1].text 
+                    ? chat.messages[chat.messages.length - 1].text.substring(0, 50)
                     : 'No messages yet';
 
                 chatItem.innerHTML = `
@@ -1472,9 +1476,91 @@
             chatMessages.innerHTML = `
                 <div class="empty-state">
                     <h3>Welcome to Helvorn AI</h3>
-                    <p>Start a conversation by typing a message below. I'll remember our conversation and provide context-aware responses across all your chats.</p>
+                    <p>Start a conversation by typing a message below. I'll remember our conversation and provide context-aware responses.</p>
                 </div>
             `;
+        }
+
+        function createStreamingMessage() {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper bot';
+            const id = 'stream-' + Date.now();
+            wrapper.id = id;
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'sender';
+            senderSpan.textContent = 'HELVORN';
+            
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = getCurrentTime();
+            
+            header.appendChild(senderSpan);
+            header.appendChild(timestamp);
+            
+            const messageText = document.createElement('div');
+            messageText.className = 'message-text';
+            messageText.setAttribute('data-streaming', 'true');
+            
+            bubble.appendChild(header);
+            bubble.appendChild(messageText);
+            wrapper.appendChild(bubble);
+            
+            chatMessages.appendChild(wrapper);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            return id;
+        }
+
+        function updateStreamingMessage(id, text) {
+            const wrapper = document.getElementById(id);
+            if (wrapper) {
+                const messageText = wrapper.querySelector('.message-text');
+                messageText.innerHTML = parseMarkdown(text);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        function finalizeStreamingMessage(id, text) {
+            const wrapper = document.getElementById(id);
+            if (wrapper) {
+                const bubble = wrapper.querySelector('.message-bubble');
+                const messageText = wrapper.querySelector('.message-text');
+                messageText.removeAttribute('data-streaming');
+                messageText.innerHTML = parseMarkdown(text);
+                
+                // Add copy button
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-message-btn';
+                copyBtn.innerHTML = `
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                `;
+                copyBtn.onclick = () => copyMessageText(text, copyBtn);
+                
+                actions.appendChild(copyBtn);
+                bubble.appendChild(actions);
+                
+                // Add copy functionality to code blocks
+                wrapper.querySelectorAll('.copy-code-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        const code = btn.getAttribute('data-code');
+                        copyToClipboard(code, btn);
+                    };
+                });
+            }
         }
 
         function addMessage(text, sender, scroll = true) {
@@ -1500,15 +1586,11 @@
             
             const messageText = document.createElement('div');
             messageText.className = 'message-text';
-            
-            // Parse code blocks and inline code
-            const parsedContent = parseCodeBlocks(text);
-            messageText.innerHTML = parsedContent;
+            messageText.innerHTML = parseMarkdown(text);
             
             bubble.appendChild(header);
             bubble.appendChild(messageText);
             
-            // Add copy button for bot messages
             if (sender === 'bot') {
                 const actions = document.createElement('div');
                 actions.className = 'message-actions';
@@ -1531,7 +1613,6 @@
             wrapper.appendChild(bubble);
             chatMessages.appendChild(wrapper);
             
-            // Add copy functionality to code blocks
             wrapper.querySelectorAll('.copy-code-btn').forEach(btn => {
                 btn.onclick = () => {
                     const code = btn.getAttribute('data-code');
@@ -1544,19 +1625,16 @@
             }
         }
 
-        function parseCodeBlocks(text) {
-            let html = text;
+        function parseMarkdown(text) {
+            let html = escapeHtml(text);
             
-            // First, handle proper markdown code blocks: ```language\ncode\n```
-            const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
-            html = html.replace(codeBlockRegex, (match, language, code) => {
-                const lang = language || 'code';
-                const trimmedCode = code.trim();
-                const escapedCode = escapeHtml(trimmedCode);
+            // Code blocks: ```language\ncode\n```
+            html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                const language = lang || 'code';
                 return `<div class="code-block">
                     <div class="code-header">
-                        <span class="code-language">${lang}</span>
-                        <button class="copy-code-btn" data-code="${escapeHtml(trimmedCode)}">
+                        <span class="code-language">${language}</span>
+                        <button class="copy-code-btn" data-code="${code.trim()}">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -1565,135 +1643,16 @@
                         </button>
                     </div>
                     <div class="code-content">
-                        <pre><code>${escapedCode}</code></pre>
+                        <pre><code>${code.trim()}</code></pre>
                     </div>
                 </div>`;
             });
             
-            // Auto-detect code-like content (HTML, common programming patterns)
-            // Look for blocks that start with < or contain function/class keywords
-            const lines = html.split('\n');
-            let inCodeBlock = false;
-            let codeLines = [];
-            let detectedLang = 'code';
-            let result = [];
+            // Inline code: `code`
+            html = html.replace(/`([^`]+)`/g, '<span class="inline-code">$1</span>');
             
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                
-                // Detect start of code (HTML tags, DOCTYPE, or common code patterns)
-                const isCodeLine = 
-                    line.startsWith('<!DOCTYPE') ||
-                    line.startsWith('<html') ||
-                    line.startsWith('<head') ||
-                    line.startsWith('<body') ||
-                    line.startsWith('<div') ||
-                    line.startsWith('<span') ||
-                    line.startsWith('<p>') ||
-                    line.startsWith('<meta') ||
-                    line.match(/^(function|class|const|let|var|def|import|export|public|private)\s/) ||
-                    line.match(/^<\w+.*>/) ||
-                    (line.includes('</') && line.includes('>'));
-                
-                if (isCodeLine && !inCodeBlock && !line.includes('class="code-block"')) {
-                    inCodeBlock = true;
-                    codeLines = [lines[i]];
-                    
-                    // Detect language
-                    if (line.includes('DOCTYPE') || line.includes('<html')) {
-                        detectedLang = 'html';
-                    } else if (line.match(/^(function|const|let|var|export|import)/)) {
-                        detectedLang = 'javascript';
-                    } else if (line.match(/^(def|class|import|from)/)) {
-                        detectedLang = 'python';
-                    }
-                } else if (inCodeBlock) {
-                    // Check if code block ends (empty line or non-code line after 2+ code lines)
-                    if (line === '' && codeLines.length > 2) {
-                        // End code block
-                        const codeText = codeLines.join('\n');
-                        const escapedCode = escapeHtml(codeText);
-                        result.push(`<div class="code-block">
-                            <div class="code-header">
-                                <span class="code-language">${detectedLang}</span>
-                                <button class="copy-code-btn" data-code="${escapeHtml(codeText)}">
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                    Copy
-                                </button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code>${escapedCode}</code></pre>
-                            </div>
-                        </div>`);
-                        inCodeBlock = false;
-                        codeLines = [];
-                        detectedLang = 'code';
-                        result.push(lines[i]);
-                    } else if (!isCodeLine && line !== '' && codeLines.length > 2) {
-                        // Non-code line encountered, end block
-                        const codeText = codeLines.join('\n');
-                        const escapedCode = escapeHtml(codeText);
-                        result.push(`<div class="code-block">
-                            <div class="code-header">
-                                <span class="code-language">${detectedLang}</span>
-                                <button class="copy-code-btn" data-code="${escapeHtml(codeText)}">
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                    Copy
-                                </button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code>${escapedCode}</code></pre>
-                            </div>
-                        </div>`);
-                        inCodeBlock = false;
-                        codeLines = [];
-                        detectedLang = 'code';
-                        result.push(lines[i]);
-                    } else {
-                        codeLines.push(lines[i]);
-                    }
-                } else {
-                    result.push(lines[i]);
-                }
-            }
-            
-            // Handle remaining code block at end
-            if (inCodeBlock && codeLines.length > 0) {
-                const codeText = codeLines.join('\n');
-                const escapedCode = escapeHtml(codeText);
-                result.push(`<div class="code-block">
-                    <div class="code-header">
-                        <span class="code-language">${detectedLang}</span>
-                        <button class="copy-code-btn" data-code="${escapeHtml(codeText)}">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                            Copy
-                        </button>
-                    </div>
-                    <div class="code-content">
-                        <pre><code>${escapedCode}</code></pre>
-                    </div>
-                </div>`);
-            }
-            
-            html = result.join('\n');
-            
-            // Replace inline code: `code`
-            const inlineCodeRegex = /`([^`]+)`/g;
-            html = html.replace(inlineCodeRegex, (match, code) => {
-                return `<span class="inline-code">${escapeHtml(code)}</span>`;
-            });
-            
-            // Convert newlines to <br> for remaining text
-            html = html.replace(/\n/g, '<br>');
+            // Paragraphs
+            html = html.split('\n\n').map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`).join('');
             
             return html;
         }
@@ -1705,7 +1664,6 @@
         }
 
         function copyMessageText(text, button) {
-            // Remove markdown code blocks for plain text copy
             const plainText = text.replace(/```[\w]*\n[\s\S]*?```/g, (match) => {
                 return match.replace(/```[\w]*\n/, '').replace(/```$/, '');
             }).replace(/`([^`]+)`/g, '$1');
@@ -1728,8 +1686,6 @@
                     button.classList.remove('copied');
                     button.innerHTML = originalHTML;
                 }, 2000);
-            }).catch(err => {
-                console.error('Copy failed:', err);
             });
         }
 
