@@ -403,6 +403,156 @@
             word-wrap: break-word;
         }
 
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .message-wrapper.user .message-actions {
+            border-top-color: rgba(0, 0, 0, 0.2);
+        }
+
+        .copy-message-btn {
+            padding: 6px 12px;
+            background: var(--dark-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .copy-message-btn:hover {
+            background: var(--glass-bg);
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .copy-message-btn.copied {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .message-wrapper.user .copy-message-btn {
+            background: rgba(0, 0, 0, 0.2);
+            border-color: rgba(0, 0, 0, 0.3);
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        .message-wrapper.user .copy-message-btn:hover {
+            background: rgba(0, 0, 0, 0.3);
+            border-color: rgba(0, 0, 0, 0.5);
+            color: #000;
+        }
+
+        .code-block {
+            position: relative;
+            margin: 12px 0;
+            background: #1a1a1a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--dark-elevated);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .code-language {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .copy-code-btn {
+            padding: 4px 10px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .copy-code-btn:hover {
+            background: var(--glass-bg);
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .copy-code-btn.copied {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .code-content {
+            padding: 16px;
+            overflow-x: auto;
+        }
+
+        .code-content pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #e0e0e0;
+        }
+
+        .code-content code {
+            font-family: 'Courier New', monospace;
+        }
+
+        .code-content::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .code-content::-webkit-scrollbar-track {
+            background: var(--dark-surface);
+        }
+
+        .code-content::-webkit-scrollbar-thumb {
+            background: var(--gold-dim);
+            border-radius: 4px;
+        }
+
+        .inline-code {
+            padding: 2px 6px;
+            background: var(--dark-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--gold);
+        }
+
+        .message-wrapper.user .inline-code {
+            background: rgba(0, 0, 0, 0.2);
+            border-color: rgba(0, 0, 0, 0.3);
+            color: rgba(0, 0, 0, 0.8);
+        }
+
         .typing-indicator {
             display: flex;
             gap: 6px;
@@ -894,7 +1044,7 @@
         // ============================================
         // CONFIGURATION - ADD YOUR GROQ API KEY HERE
         // ============================================
-        const GROQ_API_KEY = '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'; // Replace with your actual key
+        const GROQ_API_KEY = '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';
         
         // ============================================
         // STORAGE & STATE MANAGEMENT
@@ -1350,17 +1500,123 @@
             
             const messageText = document.createElement('div');
             messageText.className = 'message-text';
-            messageText.textContent = text;
+            
+            // Parse code blocks and inline code
+            const parsedContent = parseCodeBlocks(text);
+            messageText.innerHTML = parsedContent;
             
             bubble.appendChild(header);
             bubble.appendChild(messageText);
-            wrapper.appendChild(bubble);
             
+            // Add copy button for bot messages
+            if (sender === 'bot') {
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-message-btn';
+                copyBtn.innerHTML = `
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                `;
+                copyBtn.onclick = () => copyMessageText(text, copyBtn);
+                
+                actions.appendChild(copyBtn);
+                bubble.appendChild(actions);
+            }
+            
+            wrapper.appendChild(bubble);
             chatMessages.appendChild(wrapper);
+            
+            // Add copy functionality to code blocks
+            wrapper.querySelectorAll('.copy-code-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const code = btn.getAttribute('data-code');
+                    copyToClipboard(code, btn);
+                };
+            });
             
             if (scroll) {
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }
+        }
+
+        function parseCodeBlocks(text) {
+            // Replace code blocks with syntax highlighting
+            let html = text;
+            
+            // Match code blocks: ```language\ncode\n```
+            const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+            html = html.replace(codeBlockRegex, (match, language, code) => {
+                const lang = language || 'code';
+                const escapedCode = escapeHtml(code.trim());
+                return `
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span class="code-language">${lang}</span>
+                            <button class="copy-code-btn" data-code="${escapeHtml(code.trim())}">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                Copy
+                            </button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code>${escapedCode}</code></pre>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Replace inline code: `code`
+            const inlineCodeRegex = /`([^`]+)`/g;
+            html = html.replace(inlineCodeRegex, (match, code) => {
+                return `<span class="inline-code">${escapeHtml(code)}</span>`;
+            });
+            
+            // Convert newlines to <br> for remaining text
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function copyMessageText(text, button) {
+            // Remove markdown code blocks for plain text copy
+            const plainText = text.replace(/```[\w]*\n[\s\S]*?```/g, (match) => {
+                return match.replace(/```[\w]*\n/, '').replace(/```$/, '');
+            }).replace(/`([^`]+)`/g, '$1');
+            
+            copyToClipboard(plainText, button);
+        }
+
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHTML = button.innerHTML;
+                button.classList.add('copied');
+                button.innerHTML = `
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Copied!
+                `;
+                
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    button.innerHTML = originalHTML;
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+            });
         }
 
         function addSystemMessage(text) {
