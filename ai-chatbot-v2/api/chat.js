@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   try {
     // GROQ API CONFIGURATION
     // Replace 'YOUR_GROQ_API_KEY_HERE' with your actual Groq API key
-    const GROQ_API_KEY = process.env.GROQ_API_KEY || 'put the damn key here';
+    const GROQ_API_KEY = process.env.GROQ_API_KEY || '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';
     
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
